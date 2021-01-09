@@ -73,37 +73,47 @@ static bool loadObj(const std::string &filename,
 
 int main(int argc, char **argv)
 {
-    std::vector<Vector3> inputVertices;
-    std::vector<std::vector<size_t>> inputTriangles;
-    
-    loadObj("../../gargoyle.obj", inputVertices, inputTriangles);
-    
-    IsotropicRemesher isotropicRemesher(&inputVertices, &inputTriangles);
-    isotropicRemesher.setSharpEdgeIncludedAngle(90);
-    isotropicRemesher.setTargetEdgeLength(isotropicRemesher.initialAverageEdgeLength());
-    isotropicRemesher.remesh(3);
-    
-    FILE *fp = fopen("debug.obj", "wb");
-    size_t outputIndex = 0;
-    HalfedgeMesh *halfedgeMesh = isotropicRemesher.remeshedHalfedgeMesh();
-    for (HalfedgeMesh::Vertex *vertex = halfedgeMesh->moveToNextVertex(nullptr); 
-            nullptr != vertex;
-            vertex = halfedgeMesh->moveToNextVertex(vertex)) {
-        vertex->outputIndex = outputIndex++;
-        fprintf(fp, "v %f %f %f\n", 
-            vertex->position[0],
-            vertex->position[1],
-            vertex->position[2]);
+    if (argc > 1)
+    {
+        std::vector<Vector3> inputVertices;
+        std::vector<std::vector<size_t>> inputTriangles;
+
+        std::string file = argv[1];
+        size_t extPos = file.find_last_of('.');
+        if (extPos != std::string::npos)
+        {
+            std::string newFile = file.substr(0, extPos) + "_remesh.obj";
+            loadObj(file, inputVertices, inputTriangles);
+
+            IsotropicRemesher isotropicRemesher(&inputVertices, &inputTriangles);
+            isotropicRemesher.setSharpEdgeIncludedAngle(90);
+            isotropicRemesher.setTargetEdgeLength(isotropicRemesher.initialAverageEdgeLength() * 0.5);
+            //isotropicRemesher.setTargetTriangleCount(50000);
+            isotropicRemesher.remesh(3);
+
+            FILE* fp = fopen(newFile.c_str(), "wb");
+            size_t outputIndex = 0;
+            HalfedgeMesh* halfedgeMesh = isotropicRemesher.remeshedHalfedgeMesh();
+            for (HalfedgeMesh::Vertex* vertex = halfedgeMesh->moveToNextVertex(nullptr);
+                nullptr != vertex;
+                vertex = halfedgeMesh->moveToNextVertex(vertex)) {
+                vertex->outputIndex = outputIndex++;
+                fprintf(fp, "v %f %f %f\n",
+                    vertex->position[0],
+                    vertex->position[1],
+                    vertex->position[2]);
+            }
+            for (HalfedgeMesh::Face* face = halfedgeMesh->moveToNextFace(nullptr);
+                nullptr != face;
+                face = halfedgeMesh->moveToNextFace(face)) {
+                fprintf(fp, "f %d %d %d\n",
+                    (int)face->halfedge->previousHalfedge->startVertex->outputIndex + 1,
+                    (int)face->halfedge->startVertex->outputIndex + 1,
+                    (int)face->halfedge->nextHalfedge->startVertex->outputIndex + 1);
+            }
+            fclose(fp);
+        }
     }
-    for (HalfedgeMesh::Face *face = halfedgeMesh->moveToNextFace(nullptr); 
-            nullptr != face;
-            face = halfedgeMesh->moveToNextFace(face)) {
-        fprintf(fp, "f %d %d %d\n", 
-            (int)face->halfedge->previousHalfedge->startVertex->outputIndex + 1,
-            (int)face->halfedge->startVertex->outputIndex + 1,
-            (int)face->halfedge->nextHalfedge->startVertex->outputIndex + 1);
-    }
-    fclose(fp);
     
     return 0;
 }
